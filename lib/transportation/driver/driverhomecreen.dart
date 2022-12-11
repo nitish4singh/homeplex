@@ -1,0 +1,107 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:Homeplex/login/model/user_model.dart';
+import 'package:Homeplex/transportation/driver/drivercloud.dart';
+import 'package:Homeplex/transportation/driver/drivernavbar.dart';
+import 'package:Homeplex/widgets/loading_widget.dart';
+import 'package:Homeplex/widgets/products_showcase_list_view.dart';
+
+class DriverScreen extends StatefulWidget {
+  const DriverScreen({Key? key}) : super(key: key);
+  @override
+  State<DriverScreen> createState() => _DriverScreenState();
+}
+
+class _DriverScreenState extends State<DriverScreen> {
+  ScrollController controller = ScrollController();
+  double offset = 0;
+  List<Widget>? discount70;
+  List<Widget>? discount80;
+  FirebaseAuth firebaseAuth = FirebaseAuth.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    getuserdata();
+    getDriverData();
+    controller.addListener(() {
+      setState(() {
+        offset = controller.position.pixels;
+      });
+    });
+  }
+
+  void getDriverData() async {
+    List<Widget> temp80 = await Vehicalupload()
+        .getProductsByCatogary(firebaseAuth.currentUser!.uid, "yes");
+    setState(() {
+      discount80 = temp80;
+    });
+  }
+
+  User? user = FirebaseAuth.instance.currentUser;
+  UserModel loggedInUser = UserModel();
+
+  void getuserdata() async {
+    FirebaseFirestore.instance
+        .collection("users")
+        .doc(user!.uid)
+        .get()
+        .then((value) {
+      loggedInUser = UserModel.fromMap(value.data());
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    controller.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(children: [
+      Scaffold(
+        appBar: AppBar(
+          iconTheme: const IconThemeData(color: Colors.white),
+          elevation: 0.5,
+          backgroundColor: Colors.teal,
+          title: Text(
+            "   Driver ${loggedInUser.name}  ",
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontSize: 17),
+          ),
+          // actions: <Widget>[
+          //   Stack(
+          //     children: <Widget>[
+          //       IconButton(
+          //         icon:const  Icon(Icons.search),
+          //         onPressed: () {
+          //           // changeScreen(context, SearchPScreen());
+          //         },
+          //       ),
+          //     ],
+          //   ),
+          // ],
+        ),
+        drawer: const DriverNavBar(),
+        body: discount80 != null
+            ? Stack(
+                children: [
+                  SingleChildScrollView(
+                    controller: controller,
+                    child: Column(
+                      children: [
+                        ProductsShowcaseListView(children: discount80!),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : const LoadingWidget(),
+      )
+    ]);
+  }
+}

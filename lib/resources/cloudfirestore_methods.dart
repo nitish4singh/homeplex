@@ -1,0 +1,108 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:Homeplex/model/order_request_model.dart';
+import 'package:Homeplex/model/user_details_model.dart';
+import 'package:Homeplex/utils/utils.dart';
+import '../model/product_model.dart';
+import '../widgets/simple_product_widget.dart';
+
+class CloudFirestoreClass {
+  FirebaseFirestore firebaseFirestore = FirebaseFirestore.instance;
+  FirebaseAuth firebaseAuth = FirebaseAuth.instance;
+  String uid11 = Utils().getUid();
+  Future uploadNameAndAddressToDatabase(
+      {required UserDetailsModel user}) async {
+    await firebaseFirestore
+        .collection("users")
+        .doc(firebaseAuth.currentUser!.uid)
+        .set(user.getJson());
+  }
+
+  Future getNameAndAddress() async {
+    DocumentSnapshot snap = await firebaseFirestore
+        .collection("users")
+        .doc(firebaseAuth.currentUser!.uid)
+        .get();
+
+    UserDetailsModel userModel = UserDetailsModel.getModelFromJson(
+      (snap.data() as dynamic),
+    );
+    return userModel;
+  }
+
+  Future<List<Widget>> getProductsFromDiscount(
+      String district, String type, String post) async {
+    List<Widget> children = [];
+    QuerySnapshot<Map<String, dynamic>> snap = await firebaseFirestore
+        .collection("rentProperty")
+        .where("district", isEqualTo: district)
+        .where("type", isEqualTo: type)
+        .where("post", isEqualTo: post)
+        .get();
+
+    for (int i = 0; i < snap.docs.length; i++) {
+      DocumentSnapshot docSnap = snap.docs[i];
+      ProductModel model =
+          ProductModel.getModelFromJson(json: (docSnap.data() as dynamic));
+      children.add(SimpleProductWidget(productModel: model));
+    }
+    return children;
+  }
+
+  Future addProductToCart({required ProductModel productModel}) async {
+    await firebaseFirestore
+        .collection("intrest")
+        .doc(firebaseAuth.currentUser!.uid)
+        .collection("cart")
+        .doc(productModel.uid)
+        .set(productModel.getJson());
+  }
+
+  Future deleteProductFromCart({required String uid}) async {
+    await firebaseFirestore
+        .collection("users")
+        .doc(firebaseAuth.currentUser!.uid)
+        .collection("cart")
+        .doc(uid)
+        .delete();
+  }
+
+  Future buyAllItemsInCart({required UserDetailsModel userDetails}) async {
+    QuerySnapshot<Map<String, dynamic>> snapshot = await firebaseFirestore
+        .collection("users")
+        .doc(firebaseAuth.currentUser!.uid)
+        .collection("cart")
+        .get();
+
+    for (int i = 0; i < snapshot.docs.length; i++) {
+      ProductModel model =
+          ProductModel.getModelFromJson(json: snapshot.docs[i].data());
+      addProductToOrders(model: model, userDetails: userDetails);
+      await deleteProductFromCart(uid: model.uid);
+    }
+  }
+
+  Future addProductToOrders(
+      {required ProductModel model,
+      required UserDetailsModel userDetails}) async {
+    await firebaseFirestore
+        .collection("users")
+        .doc(firebaseAuth.currentUser!.uid)
+        .collection("orders")
+        .add(model.getJson());
+    await sendOrderRequest(model: model, userDetails: userDetails);
+  }
+
+  Future sendOrderRequest(
+      {required ProductModel model,
+      required UserDetailsModel userDetails}) async {
+    OrderRequestModel orderRequestModel = OrderRequestModel(
+        orderName: model.productName, buyersAddress: userDetails.address);
+    await firebaseFirestore
+        .collection("users")
+        .doc(model.sellerUid)
+        .collection("orderRequests")
+        .add(orderRequestModel.getJson());
+  }
+}
